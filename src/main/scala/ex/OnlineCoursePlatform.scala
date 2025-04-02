@@ -94,35 +94,52 @@ end OnlineCoursePlatform
 
 object OnlineCoursePlatform:
   // Factory method for creating an empty platform instance
-  def apply(): OnlineCoursePlatform = OnlineCoursePlatformImpl(empty, empty)
+  def apply(): OnlineCoursePlatform = OnlineCoursePlatformImpl(fromSequence(empty), fromSequence(empty))
 
-  private case class Enrollments(studentId: String, var courses: Sequence[Course]):
-    def add(course: Course): Unit = courses = courses.concat(Cons(course, Nil()))
-    def remove(course: Course): Unit = courses = courses.filter(_ != course)
+  // new methods for SetADT
+  extension [A](s: Set[A])
+    def add(a: A): Set[A] = if s.contains(a) then s else fromSequence(Cons(a, s.toSequence()))
+    def filter(f: A => Boolean): Set[A] = fromSequence(s.toSequence().filter(f))
+    def find(f: A => Boolean): Optional[A] = s.toSequence().find(f)
 
-  private class OnlineCoursePlatformImpl(private var courses: Sequence[Course],
-                                         private var enrollments: Sequence[Enrollments]) extends OnlineCoursePlatform:
-    override def addCourse(course: Course): Unit = courses = courses.concat(Cons(course, Nil()))
-    override def findCoursesByCategory(category: String): Sequence[Course] = courses.filter(_.category == category)
+  private case class Enrollments(studentId: String, var courses: Set[Course]):
+    def add(course: Course): Unit = courses = courses.add(course)
+    def remove(course: Course): Unit = courses = courses.remove(course)
+
+  private class OnlineCoursePlatformImpl(private var courses: Set[Course],
+                                         private var enrollments: Set[Enrollments]) extends OnlineCoursePlatform:
+    enrollments = fromSequence(empty)
+
+    override def addCourse(course: Course): Unit = courses = courses.add(course)
+
+    override def findCoursesByCategory(category: String): Sequence[Course] =
+      courses.filter(_.category == category).toSequence()
+
     override def getCourse(courseId: String): Optional[Course] = courses.find(_.courseId == courseId)
-    override def removeCourse(course: Course): Unit = courses = courses.filter(_ != course)
+
+    override def removeCourse(course: Course): Unit = courses = courses.remove(course)
+
     override def isCourseAvailable(courseId: String): Boolean = !courses.find(_.courseId == courseId).isEmpty
+
     override def enrollStudent(studentId: String, courseId: String): Unit =
       if !getCourse(courseId).isEmpty then
         val course = getCourse(courseId).orElse(Course.empty)
         val optionalStudentEnrollments = enrollments.find(_.studentId == studentId)
         if optionalStudentEnrollments.isEmpty then
-          enrollments = enrollments.concat(Cons(Enrollments(studentId, Cons(course, Nil())), Nil()))
+          enrollments = enrollments.add(Enrollments(studentId, fromSequence(Cons(course, Nil()))))
         else
-          optionalStudentEnrollments.orElse(Enrollments("", empty)).add(course)
+          optionalStudentEnrollments.orElse(Enrollments("", fromSequence(empty))).add(course)
+
     override def unenrollStudent(studentId: String, courseId: String): Unit =
       if !getCourse(courseId).isEmpty then
         val course = getCourse(courseId).orElse(Course.empty)
         val optionalStudentEnrollments = enrollments.find(_.studentId == studentId)
         if !optionalStudentEnrollments.isEmpty then
-          optionalStudentEnrollments.orElse(Enrollments("", empty)).remove(course)
+          optionalStudentEnrollments.orElse(Enrollments("", fromSequence(empty))).remove(course)
+
     override def getStudentEnrollments(studentId: String): Sequence[Course] =
-      enrollments.find(_.studentId == studentId).orElse(Enrollments("", empty)).courses
+      enrollments.find(_.studentId == studentId).orElse(Enrollments("", fromSequence(empty))).courses.toSequence()
+
     override def isStudentEnrolled(studentId: String, courseId: String): Boolean =
       getStudentEnrollments(studentId).contains(getCourse(courseId).orElse(Course.empty))
 

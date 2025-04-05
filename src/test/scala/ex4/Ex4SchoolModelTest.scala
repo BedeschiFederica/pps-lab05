@@ -1,3 +1,5 @@
+package ex4
+
 import org.junit.*
 import org.junit.Assert.*
 
